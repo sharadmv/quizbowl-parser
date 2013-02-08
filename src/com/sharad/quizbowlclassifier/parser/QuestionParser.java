@@ -1,0 +1,338 @@
+package com.sharad.quizbowlclassifier.parser;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.PrintWriter;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import javax.swing.text.BadLocationException;
+import javax.swing.text.Document;
+import javax.swing.text.rtf.RTFEditorKit;
+
+import org.apache.pdfbox.cos.COSDocument;
+import org.apache.pdfbox.pdfparser.PDFParser;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.util.PDFTextStripper;
+import org.apache.poi.hwpf.HWPFDocument;
+import org.apache.poi.hwpf.extractor.WordExtractor;
+import org.apache.poi.xwpf.extractor.XWPFWordExtractor;
+import org.apache.poi.xwpf.usermodel.XWPFDocument;
+
+import com.sharad.quizbowlclassifier.category.CategoryList;
+import com.sharad.quizbowlclassifier.parser.question.Answer;
+import com.sharad.quizbowlclassifier.parser.question.Tossup;
+
+public class QuestionParser {
+	String db;
+	String user;
+	String pw;
+	private List<Tossup> tossups = new ArrayList<Tossup>();
+	private boolean pdf = false;
+	static PrintWriter p;
+
+	public QuestionParser(String db, String user, String pw) throws IOException {
+		this.db = db;
+		this.user = user;
+		this.pw = pw;
+	}
+
+	public String getDb() {
+		return db;
+	}
+
+	public void setDb(String db) {
+		this.db = db;
+	}
+
+	public String getDocText(File file) {
+		String text = null;
+		tossups = new ArrayList<Tossup>();
+		try {
+			if (file.getName().substring(file.getName().length() - 4)
+					.equals(".doc")) {
+				HWPFDocument doc;
+
+				doc = new HWPFDocument(new FileInputStream(file));
+
+				WordExtractor ex = new WordExtractor(doc);
+				text = ex.getText();
+			} else if (file.getName().substring(file.getName().length() - 4)
+					.equals(".pdf")) {
+				PDFParser parser = new PDFParser(new FileInputStream(file));
+				parser.parse();
+				COSDocument c = parser.getDocument();
+				PDDocument p = new PDDocument(c);
+
+				PDFTextStripper st = new PDFTextStripper();
+				text = st.getText(p);
+				// System.out.println(text);
+				pdf = true;
+				p.close();
+				return text;
+			} else if (file.getName().substring(file.getName().length() - 4)
+					.equals(".rtf")) {
+				if (!file.getName().contains("~$")) {
+
+					RTFEditorKit rtf = new RTFEditorKit();
+					Document doc = rtf.createDefaultDocument();
+					InputStream input = new FileInputStream(file);
+					rtf.read(input, doc, 0);
+					input.close();
+					text = doc.getText(0, doc.getLength());
+					return text;
+				} else {
+					return null;
+				}
+			} else if (file.getName().substring(file.getName().length() - 5)
+					.equals(".docx")) {
+				XWPFDocument doc;
+				if (!file.getName().contains("~$")) {
+					doc = new XWPFDocument(new FileInputStream(file));
+
+					XWPFWordExtractor ex = new XWPFWordExtractor(doc);
+					text = ex.getText();
+					return text;
+				} else {
+					return null;
+				}
+			} else {
+				return null;
+			}
+		} catch (FileNotFoundException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (BadLocationException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		return text;
+	}
+
+	public List<Tossup> parseAndAddToDB(File file, String tour, int year,
+			String round, String dif, boolean submit, boolean cat)
+			throws IOException {
+		System.out.println("Parsing: " + year + " " + tour + " " + round);
+		String text = getDocText(file);
+		if (text != null) {
+			int count = 1;
+			if (!pdf) {
+
+				int first = 0, second = 0;
+
+				first = nextWhitespace(second, text);
+				second = nextWhitespace(first, text);
+				String firstLine = "";
+				if (first != -1 && second != -1) {
+
+					firstLine = text.substring(first, second);
+				}
+				while (first != -1 && second != -1) {
+					first = second;
+					second = nextWhitespace(first, text);
+					String secondLine = "";
+					if (first != -1 && second != -1) {
+
+						secondLine = text.substring(first, second);
+					}
+					while (secondLine.trim().equals("") && first != -1
+							&& second != -1) {
+						second = nextWhitespace(first, text);
+						if (first != -1 && second != -1) {
+							secondLine = text.substring(first, second);
+						}
+						first = second;
+
+					}
+					if (secondLine.trim().toLowerCase().contains("answer:")) {
+						if (!firstLine.trim().contains("[10]")
+								&& !firstLine.trim().contains("(10)")) {
+							if (firstLine.trim().matches("[0-9a-zA-Z]+[.)].*")) {
+								firstLine = firstLine.substring(
+										firstLine.indexOf(".") + 1).trim();
+
+							}
+							secondLine = secondLine
+									.substring(
+											secondLine.toLowerCase().indexOf(
+													"answer:") + 8).trim();
+							CategoryList list = new CategoryList();
+							Tossup t = null;
+							if (cat) {
+								t = new Tossup(
+										firstLine.substring(
+												firstLine.indexOf("]") + 1)
+												.trim(),
+										new Answer(secondLine.trim()),
+										tour,
+										year,
+										round,
+										dif,
+										count,
+										list.getCategories()
+												.get(firstLine.substring(
+														firstLine.indexOf("[") + 1,
+														firstLine.indexOf("]")))
+												.getCategory());
+							} else {
+								t = new Tossup(firstLine.trim(), new Answer(
+										secondLine.trim()), tour, year, round,
+										dif, count, null);
+							}
+							tossups.add(t);
+							count++;
+						} else {
+						}
+					}
+					firstLine = secondLine;
+				}
+				count = 1;
+
+			} else {
+				Pattern p = Pattern.compile("[\\n\\r] ?[0-9]{1,2}+[.)].*");
+				Matcher m = p.matcher(text);
+				m.find();
+				while (m.end() < text.length()) {
+					int num = 1;
+					int index = m.start();
+					if (m.find()) {
+
+						String t = text.substring(index, m.start()).trim();
+
+						if (t.indexOf('\n', t.indexOf("ANSWER:")) != -1) {
+							t = t.substring(0,
+									t.indexOf('\n', t.indexOf("ANSWER:")))
+									.trim();
+						}
+
+						if (t.contains("\r\n")) {
+							t = t.replaceAll("\\r\\n", " ");
+							t = t.replaceAll("  ", " ");
+						}
+						if (!t.contains("[10]")) {
+							if (t.indexOf("ANSWER:") != -1) {
+								Pattern patt = Pattern.compile(
+										"[0-9a-zA-Z]+[.)].*", Pattern.DOTALL);
+								Matcher match = patt.matcher(t);
+								if (match.matches()) {
+									t = t.substring(t.indexOf(".") + 1).trim();
+								}
+
+								Tossup toss = new Tossup(t
+										.substring(0, t.indexOf("ANSWER:"))
+										.trim().replaceAll("\n", ""),
+										new Answer(t.substring(
+												t.indexOf("ANSWER:") + 8)
+												.trim()), tour, year, round,
+										dif);
+								toss.setCount(num);
+								tossups.add(toss);
+								num++;
+								count++;
+							}
+						}
+					} else {
+						break;
+					}
+				}
+			}
+			Connection con = null;
+			try {
+				// con = getOracleJDBCConnection();
+			} catch (Throwable e1) {
+				// TODO Auto-generated catch block
+				e1.printStackTrace();
+			}
+
+		}
+		// // start of bonus parsing
+		return tossups;
+
+	}
+
+	public Connection getOracleJDBCConnection() throws Throwable {
+
+		Class.forName("com.mysql.jdbc.Driver").newInstance();
+
+		Connection con = DriverManager.getConnection(db, user, pw);
+
+		return con;
+	}
+
+	public String getUser() {
+		return user;
+	}
+
+	public void setUser(String user) {
+		this.user = user;
+	}
+
+	public String getPw() {
+		return pw;
+	}
+
+	public void setPw(String pw) {
+		this.pw = pw;
+	}
+
+	public static String replaceInvalidCharacters(String s) {
+		return s.replaceAll("�", "\'").replaceAll("[']", "''");
+
+	}
+
+	public int nextWhitespace(int index, String text) {
+		for (int i = index + 1; i < text.length(); i++) {
+			if (text.charAt(i) == '\n' || text.charAt(i) == (char) 11
+					|| text.charAt(i) == '\r' || text.charAt(i) == '\t'
+					|| text.charAt(i) == '\f') {
+				return i;
+			}
+		}
+		return -1;
+	}
+
+	public void createTable() throws Throwable {
+		Connection con = getOracleJDBCConnection();
+		Statement stmt = null;
+		// String query =
+		// "create table tossups(tournament TEXT,year INTEGER,question TEXT,answer TEXT,round TEXT, difficulty TEXT,question_num INTEGER,pKey VARCHAR(254),PRIMARY KEY(pKey))";
+		// String query =
+		// "insert into tossups (tournament,year) values('prison bowl','2010')";
+		String query = "delete from tossups where year like '2011'";
+
+		System.out.println(query);
+
+		try {
+			stmt = con.createStatement();
+
+			stmt.execute(query);
+		} catch (SQLException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}
+
+	}
+
+	public static void main(String[] args) throws Throwable {
+		// final String userid = "tpclubsc_quiz";
+		// final String password = "tpat";
+		// final String url =
+		// "jdbc:mysql://74.220.207.141:3306/tpclubsc_quizbowl";
+		// QuestionParser p = new QuestionParser(url, userid, password);
+		// p.createTable();
+		// Main.main(null);
+
+	}
+}

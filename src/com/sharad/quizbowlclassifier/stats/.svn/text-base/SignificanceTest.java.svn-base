@@ -1,0 +1,56 @@
+package com.sharad.quizbowlclassifier.stats;
+
+import java.util.Collection;
+
+import org.apache.commons.math.MathException;
+
+import com.sharad.quizbowlclassifier.util.StatsUtil;
+
+public class SignificanceTest {
+	private Collection<Double> data;
+	private double alpha, mu;
+	private boolean test;
+	public static final double STDEV = 6;
+
+	public SignificanceTest(Collection<Double> c, double mu, double alpha)
+			throws IllegalArgumentException, MathException {
+		data = c;
+		this.alpha = alpha;
+		this.mu = mu;
+		runTest();
+	}
+
+	private void runTest() throws IllegalArgumentException, MathException {
+		if (mu < StatsUtil.mean(data) - 3 * STDEV) {
+			test = true;
+		} else {
+			test = false;
+		}
+		// double[] l = new double[data.size()];
+		// for (int i = 0; i < data.size(); i++) {
+		// l[i] = data.toArray(new Double[data.size()])[i].doubleValue();
+		// }
+		// test = TestUtils.tTest(mu, l, alpha);
+
+	}
+
+	public Collection<Double> getData() {
+		return data;
+	}
+
+	public void setData(Collection<Double> data) {
+		this.data = data;
+	}
+
+	public double getAlpha() {
+		return alpha;
+	}
+
+	public void setAlpha(double alpha) {
+		this.alpha = alpha;
+	}
+
+	public boolean getTest() {
+		return test;
+	}
+}

@@ -1,0 +1,23 @@
+K 25
+svn:wc:ra_dav:version-url
+V 83
+/svn/!svn/ver/16/trunk/Quizbowl%20Classifier/src/com/sharad/quizbowlclassifier/util
+END
+StringUtil.java
+K 25
+svn:wc:ra_dav:version-url
+V 99
+/svn/!svn/ver/10/trunk/Quizbowl%20Classifier/src/com/sharad/quizbowlclassifier/util/StringUtil.java
+END
+CloudUtil.java
+K 25
+svn:wc:ra_dav:version-url
+V 98
+/svn/!svn/ver/16/trunk/Quizbowl%20Classifier/src/com/sharad/quizbowlclassifier/util/CloudUtil.java
+END
+StatsUtil.java
+K 25
+svn:wc:ra_dav:version-url
+V 98
+/svn/!svn/ver/10/trunk/Quizbowl%20Classifier/src/com/sharad/quizbowlclassifier/util/StatsUtil.java
+END
